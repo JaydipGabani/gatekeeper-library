@@ -79,6 +79,7 @@ spec:
             expression: |
               !has(variables.params.exemptImages) ? [] : 
                 variables.params.exemptImages.filter(image, !image.endsWith("*"))
+          # Contains images that are exempts from enforcement of this policy
           - name: exemptImages
             expression: |
               (variables.containers + variables.initContainers + variables.ephemeralContainers).filter(container,
@@ -89,6 +90,7 @@ spec:
             expression: 'has(variables.params.allowedCapabilities) ? variables.params.allowedCapabilities : []'
           - name: allCapabilitiesAllowed
             expression: '"*" in variables.allowedCapabilities'
+          # [container.name, added container capabilities that are not in the allowed capabilities list]
           - name: disallowedCapabilitiesByContainer
             expression: |
               variables.allContainers.map(container, !(container.image in variables.exemptImages) &&
@@ -98,6 +100,7 @@ spec:
               )
           - name: requiredDropCapabilities
             expression: 'has(variables.params.requiredDropCapabilities) ? variables.params.requiredDropCapabilities : []'
+          # [ container.name, capabilities not being dropped in container that are required to be dropped]
           - name: missingDropCapabilitiesByContainer
             expression: |
               variables.allContainers.map(container, !(container.image in variables.exemptImages) &&
@@ -115,9 +118,11 @@ spec:
                 ]
               )
           validations:
+          # Violations for containers adding disallowed capabilities
           - expression: '(has(request.operation) && request.operation == "UPDATE") || size(variables.disallowedCapabilitiesByContainer) == 0'
             messageExpression: |
               "containers have disallowed capabilities: " + variables.disallowedCapabilitiesByContainer.map(pair, "{container: " + pair[0] + ", capabilities: [" + pair[1] + "]}").join(", ")
+          # violations for containers not dropping required capabilities
           - expression: '(has(request.operation) && request.operation == "UPDATE") || size(variables.missingDropCapabilitiesByContainer) == 0'
             messageExpression: |
               "containers are not dropping all required capabilities: " + variables.missingDropCapabilitiesByContainer.map(pair, "{container: " + pair[0] + ", capabilities: [" + pair[1].join(", ") + "]}").join(", ")
@@ -179,6 +184,7 @@ spec:
               msg := sprintf("ephemeral container <%v> is not dropping all required capabilities. Container must drop all of %v or \"ALL\"", [container.name, input.parameters.requiredDropCapabilities])
             }
 
+            # verifies if a container has capabilities added that are not in the allowed capabilities list
             has_disallowed_capabilities(container) {
               allowed := {c | c := lower(input.parameters.allowedCapabilities[_])}
               not allowed["*"]
@@ -187,6 +193,7 @@ spec:
               count(capabilities - allowed) > 0
             }
 
+            # verifies if a container is dropping all capabilities that are needed to be dropped.
             missing_drop_capabilities(container) {
               must_drop := {c | c := lower(input.parameters.requiredDropCapabilities[_])}
               all := {"all"}
