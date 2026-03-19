@@ -8,6 +8,13 @@ The library consists of two main components: `Validation` and `Mutation`.
 - Validation: Gatekeeper can validate resources in the cluster against Gatekeeper validation policies, such as these defined in the library. The policies are defined as `ConstraintTemplates` and `Constraints`. `ConstraintTemplates` can be applied directly to a cluster and then `Constraints` can be applied to customize policy to fit your specific needs.
 - Mutation: Gatekeeper can mutate resources in the cluster against the Gatekeeper mutation policies, such as these defined in the library. Mutation policies are only examples, they should be customized to meet your needs before being applied.
 
+## Adoption and Integration
+
+Gatekeeper is used in production by a growing number of projects and organizations:
+
+- **JFrog** — Provides an [External Data Provider](https://open-policy-agent.github.io/gatekeeper/website/docs/externaldata/) for Gatekeeper, enabling admission-time policy decisions that query JFrog for container-image metadata such as vulnerability scan results and license compliance.
+- **Agent Sandbox** — A Kubernetes SIG project that uses Gatekeeper policies to enforce security boundaries for AI agent workloads. See the [policy examples](https://github.com/kubernetes-sigs/agent-sandbox/tree/main/examples/policy) for more details.
+
 ## Usage
 
 ### kustomize
