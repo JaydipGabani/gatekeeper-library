@@ -42,6 +42,61 @@ test_gpu_pod_mixed_node_label_values_denied {
     count(results) == 1
 }
 
+test_gpu_pod_with_mixed_affinity_terms_denied {
+    terms := [
+        {"matchExpressions": [{"key": "nvidia.com/gpu.present", "operator": "In", "values": ["true"]}]},
+        {"matchExpressions": [{"key": "kubernetes.io/os", "operator": "In", "values": ["linux"]}]},
+    ]
+    inp := {"review": review_with_affinity([gpu_container("trainer")], required_affinity(terms)), "parameters": {"nodeLabelKey": "nvidia.com/gpu.present", "nodeLabelValues": ["true"]}}
+    results := violation with input as inp
+    count(results) == 1
+}
+
+test_gpu_pod_with_all_matching_affinity_terms_allowed {
+    terms := [
+        {"matchExpressions": [{"key": "nvidia.com/gpu.present", "operator": "In", "values": ["true"]}]},
+        {"matchExpressions": [{"key": "nvidia.com/gpu.present", "operator": "In", "values": ["true"]}, {"key": "kubernetes.io/os", "operator": "In", "values": ["linux"]}]},
+    ]
+    inp := {"review": review_with_affinity([gpu_container("trainer")], required_affinity(terms)), "parameters": {"nodeLabelKey": "nvidia.com/gpu.present", "nodeLabelValues": ["true"]}}
+    results := violation with input as inp
+    count(results) == 0
+}
+
+test_gpu_pod_node_affinity_key_only_exists_allowed {
+    terms := [{"matchExpressions": [{"key": "nvidia.com/gpu.product", "operator": "Exists"}]}]
+    inp := {"review": review_with_affinity([gpu_container("trainer")], required_affinity(terms)), "parameters": {"nodeLabelKey": "nvidia.com/gpu.product"}}
+    results := violation with input as inp
+    count(results) == 0
+}
+
+test_gpu_pod_node_affinity_key_only_in_allowed {
+    terms := [{"matchExpressions": [{"key": "nvidia.com/gpu.product", "operator": "In", "values": ["A100"]}]}]
+    inp := {"review": review_with_affinity([gpu_container("trainer")], required_affinity(terms)), "parameters": {"nodeLabelKey": "nvidia.com/gpu.product"}}
+    results := violation with input as inp
+    count(results) == 0
+}
+
+test_gpu_pod_node_affinity_key_only_in_empty_denied {
+    terms := [{"matchExpressions": [{"key": "nvidia.com/gpu.product", "operator": "In", "values": []}]}]
+    inp := {"review": review_with_affinity([gpu_container("trainer")], required_affinity(terms)), "parameters": {"nodeLabelKey": "nvidia.com/gpu.product"}}
+    results := violation with input as inp
+    count(results) == 1
+}
+
+test_gpu_pod_node_affinity_key_only_not_in_denied {
+    terms := [{"matchExpressions": [{"key": "nvidia.com/gpu.product", "operator": "NotIn", "values": ["A100"]}]}]
+    inp := {"review": review_with_affinity([gpu_container("trainer")], required_affinity(terms)), "parameters": {"nodeLabelKey": "nvidia.com/gpu.product"}}
+    results := violation with input as inp
+    count(results) == 1
+}
+
+test_gpu_pod_node_affinity_key_only_does_not_exist_denied {
+    terms := [{"matchExpressions": [{"key": "nvidia.com/gpu.product", "operator": "DoesNotExist"}]}]
+    inp := {"review": review_with_affinity([gpu_container("trainer")], required_affinity(terms)), "parameters": {"nodeLabelKey": "nvidia.com/gpu.product"}}
+    results := violation with input as inp
+    count(results) == 1
+}
+
 test_non_gpu_pod_allowed {
     inp := {"review": review([non_gpu_container("web")]), "parameters": {"nodeLabelKey": "nvidia.com/gpu.present", "nodeLabelValues": ["true"]}}
     results := violation with input as inp
@@ -67,12 +122,17 @@ review_with_node_selector(containers, node_selector) = output {
 }
 
 required_gpu_affinity(key, values) = affinity {
+    terms := [
+        {"matchExpressions": [{"key": key, "operator": "In", "values": values}]},
+    ]
+    affinity := required_affinity(terms)
+}
+
+required_affinity(terms) = affinity {
     affinity := {
         "nodeAffinity": {
             "requiredDuringSchedulingIgnoredDuringExecution": {
-                "nodeSelectorTerms": [
-                    {"matchExpressions": [{"key": key, "operator": "In", "values": values}]},
-                ],
+                "nodeSelectorTerms": terms,
             },
         },
     }

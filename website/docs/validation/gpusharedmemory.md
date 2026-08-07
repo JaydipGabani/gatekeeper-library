@@ -51,6 +51,10 @@ spec:
           variables:
           - name: containers
             expression: 'has(variables.anyObject.spec.containers) ? variables.anyObject.spec.containers : []'
+          - name: initContainers
+            expression: 'has(variables.anyObject.spec.initContainers) ? variables.anyObject.spec.initContainers : []'
+          - name: allContainers
+            expression: 'variables.containers + variables.initContainers'
           - name: exemptImagePrefixes
             expression: |
               !has(variables.params.exemptImages) ? [] :
@@ -61,7 +65,7 @@ spec:
                 variables.params.exemptImages.filter(image, !image.endsWith("*"))
           - name: exemptImages
             expression: |
-              variables.containers.filter(container,
+              variables.allContainers.filter(container,
                 container.image in variables.exemptImageExplicit ||
                 variables.exemptImagePrefixes.exists(exemption, string(container.image).startsWith(exemption))
               ).map(container, container.image)
@@ -74,7 +78,7 @@ spec:
               ).map(v, v.name)
           - name: badContainers
             expression: |
-              variables.containers.filter(container,
+              variables.allContainers.filter(container,
                 !(container.image in variables.exemptImages) &&
                 has(container.resources) &&
                 has(container.resources.limits) &&
@@ -98,11 +102,19 @@ spec:
             import data.lib.exempt_container.is_exempt
 
             violation[{"msg": msg}] {
-                container := input.review.object.spec.containers[_]
+                container := input_containers[_]
                 not is_exempt(container)
                 has_gpu_request(container)
                 not has_shm_mount(container)
                 msg := sprintf("Container <%v> requests GPU resources but does not mount a memory-backed volume at /dev/shm", [container.name])
+            }
+
+            input_containers[container] {
+                container := input.review.object.spec.containers[_]
+            }
+
+            input_containers[container] {
+                container := input.review.object.spec.initContainers[_]
             }
 
             has_gpu_request(container) {
@@ -206,6 +218,55 @@ kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-
 ```
 
 </details>
+<details>
+<summary>example-init-allowed</summary>
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-init-container-with-shm
+spec:
+  volumes:
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 8Gi
+  initContainers:
+    - name: setup
+      image: nvidia/cuda:12.0-runtime
+      resources:
+        requests:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+      volumeMounts:
+        - name: dshm
+          mountPath: /dev/shm
+  containers:
+    - name: application
+      image: nginx:1.25
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+```
+
+Usage
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpusharedmemory/samples/gpu-with-shm/example_init_allowed.yaml
+```
+
+</details>
 
 
 </details><details>
@@ -257,6 +318,47 @@ Usage
 
 ```shell
 kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpusharedmemory/samples/gpu-without-shm/example_disallowed.yaml
+```
+
+</details>
+<details>
+<summary>example-init-disallowed</summary>
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-init-container-without-shm
+spec:
+  initContainers:
+    - name: setup
+      image: nvidia/cuda:12.0-runtime
+      resources:
+        requests:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+  containers:
+    - name: application
+      image: nginx:1.25
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+```
+
+Usage
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpusharedmemory/samples/gpu-without-shm/example_init_disallowed.yaml
 ```
 
 </details>
@@ -484,6 +586,47 @@ Usage
 
 ```shell
 kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpusharedmemory/samples/gpu-exempt-without-shm/example_allowed.yaml
+```
+
+</details>
+<details>
+<summary>example-init-allowed</summary>
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: exempt-gpu-init-container-without-shm
+spec:
+  initContainers:
+    - name: monitor
+      image: nvidia/dcgm-exporter:3.1.7
+      resources:
+        requests:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+  containers:
+    - name: application
+      image: nginx:1.25
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+```
+
+Usage
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpusharedmemory/samples/gpu-exempt-without-shm/example_init_allowed.yaml
 ```
 
 </details>

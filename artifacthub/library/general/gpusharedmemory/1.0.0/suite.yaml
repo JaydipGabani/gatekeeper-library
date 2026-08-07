@@ -11,12 +11,20 @@ tests:
     object: samples/gpu-with-shm/example_allowed.yaml
     assertions:
     - violations: no
+  - name: example-init-allowed
+    object: samples/gpu-with-shm/example_init_allowed.yaml
+    assertions:
+    - violations: no
 - name: gpu-without-shm
   template: template.yaml
   constraint: samples/gpu-without-shm/constraint.yaml
   cases:
   - name: example-disallowed
     object: samples/gpu-without-shm/example_disallowed.yaml
+    assertions:
+    - violations: yes
+  - name: example-init-disallowed
+    object: samples/gpu-without-shm/example_init_disallowed.yaml
     assertions:
     - violations: yes
 - name: no-gpu
@@ -49,5 +57,9 @@ tests:
   cases:
   - name: example-allowed
     object: samples/gpu-exempt-without-shm/example_allowed.yaml
+    assertions:
+    - violations: no
+  - name: example-init-allowed
+    object: samples/gpu-exempt-without-shm/example_init_allowed.yaml
     assertions:
     - violations: no

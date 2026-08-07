@@ -115,13 +115,15 @@ spec:
               !has(variables.anyObject.spec.affinity.nodeAffinity) ||
               !has(variables.anyObject.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution) ||
               !has(variables.anyObject.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms) ? false :
-                variables.anyObject.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms.exists(term,
+                size(variables.anyObject.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms) > 0 &&
+                variables.anyObject.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms.all(term,
                   has(term.matchExpressions) &&
                   term.matchExpressions.exists(expr,
                     expr.key == variables.nodeLabelKey &&
                     (
                       size(variables.nodeLabelValues) == 0 ?
-                        expr.operator == "Exists" :
+                        expr.operator == "Exists" ||
+                        (expr.operator == "In" && has(expr.values) && size(expr.values) > 0) :
                         expr.operator == "In" &&
                         has(expr.values) &&
                         size(expr.values) > 0 &&
@@ -208,19 +210,36 @@ spec:
             }
 
             has_matching_node_affinity(label_key) {
-              term := input.review.object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[_]
-              expr := term.matchExpressions[_]
-              expr.key == label_key
+              terms := input.review.object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms
+              count(terms) > 0
               label_values := object.get(input.parameters, "nodeLabelValues", [])
+              not has_non_matching_node_affinity_term(terms, label_key, label_values)
+            }
+
+            has_non_matching_node_affinity_term(terms, label_key, label_values) {
+              term := terms[_]
+              not term_has_matching_node_affinity(term, label_key, label_values)
+            }
+
+            term_has_matching_node_affinity(term, label_key, label_values) {
+              expr := object.get(term, "matchExpressions", [])[_]
+              expr.key == label_key
               count(label_values) == 0
               expr.operator == "Exists"
             }
 
-            has_matching_node_affinity(label_key) {
-              term := input.review.object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[_]
-              expr := term.matchExpressions[_]
+            term_has_matching_node_affinity(term, label_key, label_values) {
+              expr := object.get(term, "matchExpressions", [])[_]
               expr.key == label_key
-              label_values := object.get(input.parameters, "nodeLabelValues", [])
+              count(label_values) == 0
+              expr.operator == "In"
+              values := object.get(expr, "values", [])
+              count(values) > 0
+            }
+
+            term_has_matching_node_affinity(term, label_key, label_values) {
+              expr := object.get(term, "matchExpressions", [])[_]
+              expr.key == label_key
               count(label_values) > 0
               expr.operator == "In"
               values := object.get(expr, "values", [])
@@ -391,6 +410,100 @@ Usage
 
 ```shell
 kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpunodetargeting/samples/gpu-pod-with-node-affinity/example_disallowed_mixed_values.yaml
+```
+
+</details>
+<details>
+<summary>example-allowed-all-terms</summary>
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-pod-with-all-node-affinity-terms
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: nvidia.com/gpu.present
+                operator: In
+                values:
+                  - "true"
+          - matchExpressions:
+              - key: nvidia.com/gpu.present
+                operator: In
+                values:
+                  - "true"
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                  - linux
+  containers:
+    - name: training
+      image: nvidia/cuda:12.0-runtime
+      resources:
+        requests:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+
+```
+
+Usage
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpunodetargeting/samples/gpu-pod-with-node-affinity/example_allowed_all_terms.yaml
+```
+
+</details>
+<details>
+<summary>example-disallowed-broad-term</summary>
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-pod-with-broad-node-affinity-term
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: nvidia.com/gpu.present
+                operator: In
+                values:
+                  - "true"
+          - matchExpressions:
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                  - linux
+  containers:
+    - name: training
+      image: nvidia/cuda:12.0-runtime
+      resources:
+        requests:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+
+```
+
+Usage
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpunodetargeting/samples/gpu-pod-with-node-affinity/example_disallowed_broad_term.yaml
 ```
 
 </details>
@@ -644,6 +757,232 @@ Usage
 
 ```shell
 kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpunodetargeting/samples/gpu-pod-node-selector-key-only/example_disallowed_empty_value.yaml
+```
+
+</details>
+
+
+</details><details>
+<summary>gpu-pod-node-affinity-key-only</summary>
+
+<details>
+<summary>constraint</summary>
+
+```yaml
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sGpuNodeTargeting
+metadata:
+  name: require-gpu-node-affinity-key
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+  parameters:
+    nodeLabelKey: "nvidia.com/gpu.product"
+
+```
+
+Usage
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpunodetargeting/samples/gpu-pod-node-affinity-key-only/constraint.yaml
+```
+
+</details>
+
+<details>
+<summary>example-allowed-exists</summary>
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-pod-with-node-affinity-key-exists
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: nvidia.com/gpu.product
+                operator: Exists
+  containers:
+    - name: training
+      image: nvidia/cuda:12.0-runtime
+      resources:
+        requests:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+
+```
+
+Usage
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpunodetargeting/samples/gpu-pod-node-affinity-key-only/example_allowed_exists.yaml
+```
+
+</details>
+<details>
+<summary>example-allowed-in</summary>
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-pod-with-node-affinity-key-in
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: nvidia.com/gpu.product
+                operator: In
+                values:
+                  - A100
+  containers:
+    - name: training
+      image: nvidia/cuda:12.0-runtime
+      resources:
+        requests:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+
+```
+
+Usage
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpunodetargeting/samples/gpu-pod-node-affinity-key-only/example_allowed_in.yaml
+```
+
+</details>
+<details>
+<summary>example-disallowed-empty-in</summary>
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-pod-with-empty-node-affinity-values
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: nvidia.com/gpu.product
+                operator: In
+                values: []
+  containers:
+    - name: training
+      image: nvidia/cuda:12.0-runtime
+      resources:
+        requests:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+
+```
+
+Usage
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpunodetargeting/samples/gpu-pod-node-affinity-key-only/example_disallowed_empty_in.yaml
+```
+
+</details>
+<details>
+<summary>example-disallowed-not-in</summary>
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-pod-with-node-affinity-key-not-in
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: nvidia.com/gpu.product
+                operator: NotIn
+                values:
+                  - A100
+  containers:
+    - name: training
+      image: nvidia/cuda:12.0-runtime
+      resources:
+        requests:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+
+```
+
+Usage
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpunodetargeting/samples/gpu-pod-node-affinity-key-only/example_disallowed_not_in.yaml
+```
+
+</details>
+<details>
+<summary>example-disallowed-does-not-exist</summary>
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-pod-with-node-affinity-key-does-not-exist
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: nvidia.com/gpu.product
+                operator: DoesNotExist
+  containers:
+    - name: training
+      image: nvidia/cuda:12.0-runtime
+      resources:
+        requests:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "1"
+          memory: 1Gi
+          nvidia.com/gpu: "1"
+
+```
+
+Usage
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/master/library/general/gpunodetargeting/samples/gpu-pod-node-affinity-key-only/example_disallowed_does_not_exist.yaml
 ```
 
 </details>

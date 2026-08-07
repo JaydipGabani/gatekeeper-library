@@ -51,13 +51,15 @@ variables:
     !has(variables.anyObject.spec.affinity.nodeAffinity) ||
     !has(variables.anyObject.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution) ||
     !has(variables.anyObject.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms) ? false :
-      variables.anyObject.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms.exists(term,
+      size(variables.anyObject.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms) > 0 &&
+      variables.anyObject.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms.all(term,
         has(term.matchExpressions) &&
         term.matchExpressions.exists(expr,
           expr.key == variables.nodeLabelKey &&
           (
             size(variables.nodeLabelValues) == 0 ?
-              expr.operator == "Exists" :
+              expr.operator == "Exists" ||
+              (expr.operator == "In" && has(expr.values) && size(expr.values) > 0) :
               expr.operator == "In" &&
               has(expr.values) &&
               size(expr.values) > 0 &&

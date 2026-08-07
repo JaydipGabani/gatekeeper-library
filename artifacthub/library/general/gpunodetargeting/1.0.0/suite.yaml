@@ -19,6 +19,14 @@ tests:
     object: samples/gpu-pod-with-node-affinity/example_disallowed_mixed_values.yaml
     assertions:
     - violations: yes
+  - name: example-allowed-all-terms
+    object: samples/gpu-pod-with-node-affinity/example_allowed_all_terms.yaml
+    assertions:
+    - violations: no
+  - name: example-disallowed-broad-term
+    object: samples/gpu-pod-with-node-affinity/example_disallowed_broad_term.yaml
+    assertions:
+    - violations: yes
 - name: gpu-pod-with-node-selector
   template: template.yaml
   constraint: samples/gpu-pod-with-node-selector/constraint.yaml
@@ -53,6 +61,30 @@ tests:
     - violations: no
   - name: example-disallowed-empty-value
     object: samples/gpu-pod-node-selector-key-only/example_disallowed_empty_value.yaml
+    assertions:
+    - violations: yes
+- name: gpu-pod-node-affinity-key-only
+  template: template.yaml
+  constraint: samples/gpu-pod-node-affinity-key-only/constraint.yaml
+  cases:
+  - name: example-allowed-exists
+    object: samples/gpu-pod-node-affinity-key-only/example_allowed_exists.yaml
+    assertions:
+    - violations: no
+  - name: example-allowed-in
+    object: samples/gpu-pod-node-affinity-key-only/example_allowed_in.yaml
+    assertions:
+    - violations: no
+  - name: example-disallowed-empty-in
+    object: samples/gpu-pod-node-affinity-key-only/example_disallowed_empty_in.yaml
+    assertions:
+    - violations: yes
+  - name: example-disallowed-not-in
+    object: samples/gpu-pod-node-affinity-key-only/example_disallowed_not_in.yaml
+    assertions:
+    - violations: yes
+  - name: example-disallowed-does-not-exist
+    object: samples/gpu-pod-node-affinity-key-only/example_disallowed_does_not_exist.yaml
     assertions:
     - violations: yes
 - name: gpu-pod-exempt

@@ -68,19 +68,36 @@ has_matching_node_selector(label_key) {
 }
 
 has_matching_node_affinity(label_key) {
-  term := input.review.object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[_]
-  expr := term.matchExpressions[_]
-  expr.key == label_key
+  terms := input.review.object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms
+  count(terms) > 0
   label_values := object.get(input.parameters, "nodeLabelValues", [])
+  not has_non_matching_node_affinity_term(terms, label_key, label_values)
+}
+
+has_non_matching_node_affinity_term(terms, label_key, label_values) {
+  term := terms[_]
+  not term_has_matching_node_affinity(term, label_key, label_values)
+}
+
+term_has_matching_node_affinity(term, label_key, label_values) {
+  expr := object.get(term, "matchExpressions", [])[_]
+  expr.key == label_key
   count(label_values) == 0
   expr.operator == "Exists"
 }
 
-has_matching_node_affinity(label_key) {
-  term := input.review.object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[_]
-  expr := term.matchExpressions[_]
+term_has_matching_node_affinity(term, label_key, label_values) {
+  expr := object.get(term, "matchExpressions", [])[_]
   expr.key == label_key
-  label_values := object.get(input.parameters, "nodeLabelValues", [])
+  count(label_values) == 0
+  expr.operator == "In"
+  values := object.get(expr, "values", [])
+  count(values) > 0
+}
+
+term_has_matching_node_affinity(term, label_key, label_values) {
+  expr := object.get(term, "matchExpressions", [])[_]
+  expr.key == label_key
   count(label_values) > 0
   expr.operator == "In"
   values := object.get(expr, "values", [])

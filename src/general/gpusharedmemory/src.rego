@@ -3,11 +3,19 @@ package k8sgpusharedmemory
 import data.lib.exempt_container.is_exempt
 
 violation[{"msg": msg}] {
-    container := input.review.object.spec.containers[_]
+    container := input_containers[_]
     not is_exempt(container)
     has_gpu_request(container)
     not has_shm_mount(container)
     msg := sprintf("Container <%v> requests GPU resources but does not mount a memory-backed volume at /dev/shm", [container.name])
+}
+
+input_containers[container] {
+    container := input.review.object.spec.containers[_]
+}
+
+input_containers[container] {
+    container := input.review.object.spec.initContainers[_]
 }
 
 has_gpu_request(container) {
