@@ -82,7 +82,3 @@ The following policies are available separately because they are not appropriate
 
 - [No Unsupported GPU](./nounsupportedgpu.md) requires GPU-requesting containers to declare `NVIDIA_VISIBLE_DEVICES`.
 - [Required GPU Runtime Class](./requiredgpuruntimeclass.md) restricts GPU workloads to approved runtime classes.
-
-## Rollout
-
-Review each policy's linked constraints and examples before deployment. Start with narrowly scoped constraints, observe audit results, and expand enforcement after validating workload compatibility. Use fully qualified image names for exemptions to avoid trusting an unintended registry.
