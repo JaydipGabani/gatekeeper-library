@@ -26,6 +26,7 @@ module.exports = {
           label: 'AI Workload Policies',
           collapsed: true,
           items: [
+            'validation/ai-workload-policies',
             {
               type: 'category',
               label: 'Profiles',
